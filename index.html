@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Planets — Click for info</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1724;
+      --card:#0b1220cc;
+      --accent:#ffd166;
+      --muted:#9aa7b2;
+    }
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Arial;}
+    body{
+      background: radial-gradient(ellipse at 10% 10%, #09111b 0%, #04101a 30%, var(--bg) 100%);
+      color:#e6eef6;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .stage {
+      width: 90vw;
+      max-width:1000px;
+      height: 70vh;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+      border-radius:12px;
+      box-shadow: 0 10px 30px rgba(2,6,23,0.7);
+      padding:18px;
+      position:relative;
+      overflow:hidden;
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+
+    header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin-bottom:8px;
+    }
+    h1{font-size:1.05rem;margin:0;color:var(--accent)}
+    p.lead{margin:0;color:var(--muted);font-size:0.9rem}
+
+    svg{width:100%;height:calc(100% - 46px); background:transparent; display:block;}
+
+    .info-card {
+      position:absolute;
+      min-width:200px;
+      max-width:320px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.25));
+      border-radius:10px;
+      padding:12px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      border:1px solid rgba(255,255,255,0.04);
+      pointer-events:auto;
+      transform-origin:top left;
+      z-index:50;
+      color:#e9f2ff;
+      backdrop-filter: blur(6px);
+    }
+    .info-card h3{margin:0 0 6px 0;font-size:1rem}
+    .info-card .meta{font-size:0.85rem;color:var(--muted);margin-bottom:8px}
+    .info-card p{margin:0;font-size:0.95rem;line-height:1.25;color:#dbeaf8}
+    .close-btn {
+      position:absolute;
+      right:8px;top:8px;
+      background:transparent;border:0;color:var(--muted);
+      cursor:pointer;font-size:1rem;padding:4px;
+    }
+
+    /* Planet hover/focus styles */
+    .planet {
+      cursor:pointer;
+      transition: transform 180ms ease, filter 180ms;
+      filter:drop-shadow(0 6px 10px rgba(0,0,0,0.6));
+    }
+    .planet:hover, .planet:focus {
+      transform: scale(1.08);
+      filter: drop-shadow(0 10px 16px rgba(0,0,0,0.7));
+      outline: none;
+    }
+
+    /* small legend */
+    .legend{
+      position:absolute;
+      right:12px;bottom:12px;
+      background:var(--panel);padding:8px;border-radius:8px;color:var(--muted);
+      font-size:0.85rem;border:1px solid rgba(255,255,255,0.02);
+    }
+
+    @media (max-width:600px){
+      .stage{height:70vh;padding:12px}
+      .info-card{min-width:170px}
+    }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <header>
+      <div>
+        <h1>Hệ hành tinh (demo)</h1>
+        <p class="lead">Nhấn (hoặc nhấn Enter/Space khi focus) vào một hành tinh để xem thông tin.</p>
+      </div>
+      <div style="text-align:right;color:var(--muted);font-size:0.85rem">Click để xem ↗</div>
+    </header>
+
+    <svg id="space" viewBox="0 0 1000 600" role="img" aria-label="Không gian với các hành tinh">
+      <!-- Sun -->
+      <circle cx="160" cy="300" r="60" fill="url(#sunGrad)"></circle>
+      <defs>
+        <radialGradient id="sunGrad">
+          <stop offset="0%" stop-color="#fff7cc"/>
+          <stop offset="45%" stop-color="#ffd166"/>
+          <stop offset="100%" stop-color="#ff8a00"/>
+        </radialGradient>
+      </defs>
+
+      <!-- Planets group -->
+      <g id="planetsGroup" aria-hidden="false"></g>
+
+      <!-- optional orbit lines -->
+      <g id="orbits" stroke="rgba(255,255,255,0.04)" fill="none">
+        <ellipse cx="410" cy="300" rx="140" ry="60"></ellipse>
+        <ellipse cx="610" cy="300" rx="220" ry="90"></ellipse>
+        <ellipse cx="820" cy="300" rx="120" ry="50"></ellipse>
+      </g>
+    </svg>
+
+    <div class="legend">Trợ giúp: <strong style="color:var(--accent)">Tab</strong> để chọn, <strong>Esc</strong> để đóng</div>
+  </div>
+
+  <template id="card-template">
+    <div class="info-card" role="dialog" aria-modal="false">
+      <button class="close-btn" aria-label="Đóng">&times;</button>
+      <h3></h3>
+      <div class="meta"></div>
+      <p></p>
+    </div>
+  </template>
+
+  <script>
+    // Dữ liệu hành tinh (ví dụ)
+    const planets = [
+      { id: 'mercury', name: 'Mercury', color:'#9aa6b2', r:12, cx:360, cy:260, info:'Hành tinh nhỏ, gần Mặt Trời, bề mặt đá, nhiệt độ cao ban ngày.'},
+      { id: 'venus',   name: 'Venus',   color:'#e59b7c', r:18, cx:470, cy:320, info:'Bầu khí quyển dày, nhiệt độ bề mặt rất cao.'},
+      { id: 'earth',   name: 'Earth',   color:'#63a4ff', r:20, cx:620, cy:260, info:'Hành tinh có sự sống, có nước lỏng trên bề mặt.'},
+      { id: 'mars',    name: 'Mars',    color:'#ff6b6b', r:14, cx:790, cy:320, info:'Hành tinh đỏ, có nhiều bằng chứng về nước trong quá khứ.'}
+    ];
+
+    const group = document.getElementById('planetsGroup');
+    const stage = document.getElementById('stage');
+    const template = document.getElementById('card-template');
+
+    // Tạo các circle cho từng hành tinh, đặt tabindex để có thể focus
+    planets.forEach(pl => {
+      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.setAttribute('class','planet');
+      g.setAttribute('data-id',pl.id);
+      g.setAttribute('tabindex','0'); // focusable for keyboard
+      g.setAttribute('role','button');
+      g.setAttribute('aria-label', pl.name + ' — Nhấn để xem thông tin');
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circle.setAttribute('cx',pl.cx);
+      circle.setAttribute('cy',pl.cy);
+      circle.setAttribute('r',pl.r);
+      circle.setAttribute('fill',pl.color);
+      circle.setAttribute('stroke','rgba(255,255,255,0.06)');
+      circle.setAttribute('stroke-width','1');
+
+      const glow = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      glow.setAttribute('cx',pl.cx);
+      glow.setAttribute('cy',pl.cy);
+      glow.setAttribute('r',pl.r+6);
+      glow.setAttribute('fill','none');
+      glow.setAttribute('stroke',pl.color);
+      glow.setAttribute('stroke-opacity','0.08');
+
+      // optional: small label
+      const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+      label.setAttribute('x', pl.cx);
+      label.setAttribute('y', pl.cy + pl.r + 16);
+      label.setAttribute('text-anchor','middle');
+      label.setAttribute('fill','rgba(255,255,255,0.7)');
+      label.setAttribute('font-size','11');
+      label.textContent = pl.name;
+
+      g.appendChild(glow);
+      g.appendChild(circle);
+      g.appendChild(label);
+
+      // Event handlers
+      g.addEventListener('click', (ev) => openCard(ev, pl));
+      g.addEventListener('keydown', (ev) => {
+        if(ev.key === 'Enter' || ev.key === ' '){
+          ev.preventDefault();
+          openCard(ev, pl);
+        }
+      });
+
+      group.appendChild(g);
+    });
+
+    let openCardEl = null;
+
+    function openCard(event, planet) {
+      closeCard();
+      const tpl = template.content.cloneNode(true);
+      const card = tpl.querySelector('.info-card');
+      card.querySelector('h3').textContent = planet.name;
+      card.querySelector('.meta').textContent = `Radius: ${planet.r}px • ID: ${planet.id}`;
+      card.querySelector('p').textContent = planet.info;
+
+      // Close button
+      card.querySelector('.close-btn').addEventListener('click', closeCard);
+
+      // Position card near click or near planet (translate SVG -> screen coords)
+      const point = { x: event.clientX, y: event.clientY };
+      // If click event comes from keyboard (no clientX), compute from planet data relative to svg
+      if (!point.x || point.x === 0) {
+        // compute approximate position using svg bounding box
+        const svg = document.getElementById('space');
+        const rect = svg.getBoundingClientRect();
+        point.x = rect.left + planet.cx / 1000 * rect.width;
+        point.y = rect.top + planet.cy / 600 * rect.height;
+      }
+
+      card.style.left = (point.x + 12) + 'px';
+      card.style.top  = (point.y - 12) + 'px';
+
+      // adjust if card goes off-screen
+      document.body.appendChild(card);
+      requestAnimationFrame(() => {
+        const cRect = card.getBoundingClientRect();
+        const pad = 8;
+        let left = cRect.left, top = cRect.top;
+        if (cRect.right > window.innerWidth - pad) {
+          left = Math.max(pad, window.innerWidth - cRect.width - pad);
+          card.style.left = left + 'px';
+        }
+        if (cRect.bottom > window.innerHeight - pad) {
+          top = Math.max(pad, window.innerHeight - cRect.height - pad);
+          card.style.top = top + 'px';
+        }
+      });
+
+      openCardEl = card;
+
+      // close when clicking outside
+      setTimeout(() => {
+        window.addEventListener('click', outsideClickHandler);
+      }, 0);
+      window.addEventListener('keydown', escHandler);
+    }
+
+    function closeCard() {
+      if (openCardEl) {
+        openCardEl.remove();
+        openCardEl = null;
+        window.removeEventListener('click', outsideClickHandler);
+        window.removeEventListener('keydown', escHandler);
+      }
+    }
+
+    function outsideClickHandler(e) {
+      if (!openCardEl) return;
+      if (openCardEl.contains(e.target)) return;
+      // allow clicks on planets to re-open (they are in svg, not inside card)
+      closeCard();
+    }
+
+    function escHandler(e) {
+      if (e.key === 'Escape') closeCard();
+    }
+
+    // Accessibility: trap focus to stage area minimal (optional)
+    stage.addEventListener('keydown', (e) => {
+      // If Tab and a card is open, focus closes to first focusable inside card
+      if (e.key === 'Tab' && openCardEl) {
+        const focusables = openCardEl.querySelectorAll('button, [tabindex]');
+        if (focusables.length) focusables[0].focus();
+      }
+    });
+
+    // Simple floating/animation effect for planets (subtle)
+    let t = 0;
+    function animate() {
+      t += 0.016;
+      const nodes = group.querySelectorAll('g.planet');
+      nodes.forEach((node, i) => {
+        const dx = Math.sin(t * (0.6 + i*0.12)) * (2 + i);
+        const dy = Math.cos(t * (0.5 + i*0.08)) * (1 + i*0.5);
+        node.style.transform = `translate(${dx}px, ${dy}px)`;
+      });
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    // Prevent SVG selection dragging and default behavior interfering with clicks
+    document.getElementById('space').addEventListener('mousedown', (e) => e.preventDefault());
+  </script>
+</body>
+</html>
